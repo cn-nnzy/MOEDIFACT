@@ -20,3 +20,17 @@ test "reports an unterminated segment" {
     _ => ()
   }
 }
+
+///|
+test "validates message and interchange envelopes" {
+  let valid = @moedifact.parse(
+    "UNB+UNOC:3+SENDER+RECEIVER+DATE+42'UNH+1+ORDERS:D:96A:UN'BGM+220'UNT+3+1'UNZ+1+42'",
+  )
+  assert_eq(@moedifact.validate_envelope(valid).length(), 0)
+  let invalid = @moedifact.parse(
+    "UNB+UNOC:3+SENDER+RECEIVER+DATE+42'UNH+1+ORDERS:D:96A:UN'BGM+220'UNT+4+9'UNZ+1+7'",
+  )
+  let findings = @moedifact.validate_envelope(invalid)
+  assert_eq(findings.length(), 3)
+  assert_eq(findings[0].code, "message-count")
+}

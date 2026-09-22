@@ -31,6 +31,14 @@ pub(all) struct Interchange {
 }
 
 ///|
+/// A structural envelope finding. `segment_index` is zero based.
+pub(all) struct EnvelopeIssue {
+  code : String
+  segment_index : Int
+  message : String
+}
+
+///|
 let default_syntax : Syntax = {
   component: ':',
   element: '+',
@@ -151,4 +159,150 @@ pub fn parse(source : String) -> Interchange raise ParseError {
     raise UnterminatedSegment(segment_start)
   }
   { syntax, segments, }
+}
+
+///|
+fn first_value(segment : Segment, index : Int) -> String? {
+  if index < segment.elements.length() && segment.elements[index].length() > 0 {
+    Some(segment.elements[index][0])
+  } else {
+    None
+  }
+}
+
+///|
+/// Check service-segment pairing and control references at the syntax layer.
+pub fn validate_envelope(interchange : Interchange) -> Array[EnvelopeIssue] {
+  let issues : Array[EnvelopeIssue] = []
+  let segments = interchange.segments
+  if segments.length() == 0 {
+    issues.push({
+      code: "empty",
+      segment_index: 0,
+      message: "interchange has no segments",
+    })
+    return issues
+  }
+  if segments[0].tag != "UNB" {
+    issues.push({
+      code: "missing-unb",
+      segment_index: 0,
+      message: "interchange must start with UNB",
+    })
+  }
+  if segments[segments.length() - 1].tag != "UNZ" {
+    issues.push({
+      code: "missing-unz",
+      segment_index: segments.length() - 1,
+      message: "interchange must end with UNZ",
+    })
+  }
+  let interchange_reference = if segments[0].tag == "UNB" {
+    first_value(segments[0], 4)
+  } else {
+    None
+  }
+  let mut open_message : (Int, String)? = None
+  let mut i = 0
+  while i < segments.length() {
+    let segment = segments[i]
+    if segment.tag == "UNH" {
+      match open_message {
+        Some(_) =>
+          issues.push({
+            code: "nested-unh",
+            segment_index: i,
+            message: "UNH appears before the previous UNT",
+          })
+        None =>
+          match first_value(segment, 0) {
+            Some(value) => open_message = Some((i, value))
+            None =>
+              issues.push({
+                code: "missing-unh-reference",
+                segment_index: i,
+                message: "UNH has no message reference",
+              })
+          }
+      }
+    } else if segment.tag == "UNT" {
+      match open_message {
+        None =>
+          issues.push({
+            code: "orphan-unt",
+            segment_index: i,
+            message: "UNT has no matching UNH",
+          })
+        Some((open_index, reference)) => {
+          let actual_count = i - open_index + 1
+          match first_value(segment, 0) {
+            Some(value) =>
+              if value != actual_count.to_string() {
+                issues.push({
+                  code: "message-count",
+                  segment_index: i,
+                  message: "UNT segment count does not match the message",
+                })
+              }
+            None =>
+              issues.push({
+                code: "missing-unt-count",
+                segment_index: i,
+                message: "UNT has no segment count",
+              })
+          }
+          match first_value(segment, 1) {
+            Some(value) =>
+              if value != reference {
+                issues.push({
+                  code: "message-reference",
+                  segment_index: i,
+                  message: "UNT reference does not match UNH",
+                })
+              }
+            None =>
+              issues.push({
+                code: "missing-unt-reference",
+                segment_index: i,
+                message: "UNT has no message reference",
+              })
+          }
+          open_message = None
+        }
+      }
+    }
+    i += 1
+  }
+  match open_message {
+    Some((index, _)) =>
+      issues.push({
+        code: "missing-unt",
+        segment_index: index,
+        message: "message has no closing UNT",
+      })
+    None => ()
+  }
+  if segments[segments.length() - 1].tag == "UNZ" {
+    match interchange_reference {
+      Some(reference) =>
+        match first_value(segments[segments.length() - 1], 1) {
+          Some(value) =>
+            if value != reference {
+              issues.push({
+                code: "interchange-reference",
+                segment_index: segments.length() - 1,
+                message: "UNZ reference does not match UNB",
+              })
+            }
+          None =>
+            issues.push({
+              code: "missing-unz-reference",
+              segment_index: segments.length() - 1,
+              message: "UNZ has no interchange reference",
+            })
+        }
+      None => ()
+    }
+  }
+  issues
 }
