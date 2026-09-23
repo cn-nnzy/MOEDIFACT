@@ -4,6 +4,8 @@ package "cn-nnzy/moedifact"
 // Values
 pub fn parse(String) -> Interchange raise ParseError
 
+pub fn parse_with_limits(String, ParseLimits) -> Interchange raise ParseError
+
 pub fn serialize(Interchange) -> String
 
 pub fn validate_envelope(Interchange) -> Array[EnvelopeIssue]
@@ -14,6 +16,10 @@ pub suberror ParseError {
   MissingTag(Int)
   UnterminatedSegment(Int)
   TrailingEscape(Int)
+  InvalidLimit(String, Int)
+  InputLimitExceeded(Int, Int)
+  SegmentLimitExceeded(Int, Int)
+  SegmentLengthLimitExceeded(Int, Int, Int)
 }
 
 // Types and methods
@@ -26,6 +32,12 @@ pub(all) struct EnvelopeIssue {
 pub(all) struct Interchange {
   syntax : Syntax
   segments : Array[Segment]
+}
+
+pub(all) struct ParseLimits {
+  max_input_units : Int
+  max_segments : Int
+  max_segment_units : Int
 }
 
 pub(all) struct Segment {

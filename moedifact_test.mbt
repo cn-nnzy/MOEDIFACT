@@ -35,11 +35,10 @@ test "serializes released data deterministically" {
 
 ///|
 test "reports an unterminated segment" {
-  try {
-    ignore(@moedifact.parse("UNB+SENDER"))
-    fail("expected parse error")
-  } catch {
+  try @moedifact.parse("UNB+SENDER") catch {
     _ => ()
+  } noraise {
+    _ => fail("expected parse error")
   }
 }
 
@@ -103,4 +102,53 @@ test "reports an unclosed functional group" {
   assert_eq(findings.length(), 2)
   assert_eq(findings[0].code, "missing-une")
   assert_eq(findings[1].code, "interchange-count")
+}
+
+///|
+test "accepts input exactly at configured limits" {
+  let source = "UNA:+.? 'UNB+S+R+D+1'UNZ+0+1'"
+  let parsed = @moedifact.parse_with_limits(source, {
+    max_input_units: source.length(),
+    max_segments: 2,
+    max_segment_units: 12,
+  })
+  assert_eq(parsed.segments.length(), 2)
+}
+
+///|
+test "rejects bounded parsing overflows" {
+  let source = "UNB+S+R+D+1'UNZ+0+1'"
+  try
+    @moedifact.parse_with_limits(source, {
+      max_input_units: source.length() - 1,
+      max_segments: 2,
+      max_segment_units: 12,
+    })
+  catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected input limit error")
+  }
+  try
+    @moedifact.parse_with_limits(source, {
+      max_input_units: source.length(),
+      max_segments: 1,
+      max_segment_units: 12,
+    })
+  catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected segment count error")
+  }
+  try
+    @moedifact.parse_with_limits(source, {
+      max_input_units: source.length(),
+      max_segments: 2,
+      max_segment_units: 8,
+    })
+  catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected segment length error")
+  }
 }

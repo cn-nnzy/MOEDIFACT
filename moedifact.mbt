@@ -22,12 +22,24 @@ pub suberror ParseError {
   MissingTag(Int)
   UnterminatedSegment(Int)
   TrailingEscape(Int)
+  InvalidLimit(String, Int)
+  InputLimitExceeded(Int, Int)
+  SegmentLimitExceeded(Int, Int)
+  SegmentLengthLimitExceeded(Int, Int, Int)
 }
 
 ///|
 pub(all) struct Interchange {
   syntax : Syntax
   segments : Array[Segment]
+}
+
+///|
+/// Resource limits for parsing untrusted interchange text.
+pub(all) struct ParseLimits {
+  max_input_units : Int
+  max_segments : Int
+  max_segment_units : Int
 }
 
 ///|
@@ -155,6 +167,70 @@ pub fn parse(source : String) -> Interchange raise ParseError {
     raise UnterminatedSegment(segment_start)
   }
   { syntax, segments, }
+}
+
+///|
+fn check_limits(source : String, limits : ParseLimits) -> Unit raise ParseError {
+  if limits.max_input_units <= 0 {
+    raise InvalidLimit("max_input_units", limits.max_input_units)
+  }
+  if limits.max_segments <= 0 {
+    raise InvalidLimit("max_segments", limits.max_segments)
+  }
+  if limits.max_segment_units <= 0 {
+    raise InvalidLimit("max_segment_units", limits.max_segment_units)
+  }
+  if source.length() > limits.max_input_units {
+    raise InputLimitExceeded(source.length(), limits.max_input_units)
+  }
+  let (syntax, offset) = syntax_from(source[:])
+  let mut segment_start = offset
+  let mut segment_count = 0
+  let mut escaped = false
+  let mut i = offset
+  while i < source.length() {
+    let char = source.get_char(i).unwrap()
+    if escaped {
+      escaped = false
+    } else if char == syntax.release {
+      escaped = true
+    } else if char == syntax.terminator {
+      let segment_units = i - segment_start + 1
+      if segment_units > limits.max_segment_units {
+        raise SegmentLengthLimitExceeded(
+          segment_count,
+          segment_units,
+          limits.max_segment_units,
+        )
+      }
+      segment_count += 1
+      if segment_count > limits.max_segments {
+        raise SegmentLimitExceeded(segment_count, limits.max_segments)
+      }
+      segment_start = i + 1
+    }
+    i += 1
+  }
+  if segment_start < source.length() {
+    let segment_units = source.length() - segment_start
+    if segment_units > limits.max_segment_units {
+      raise SegmentLengthLimitExceeded(
+        segment_count,
+        segment_units,
+        limits.max_segment_units,
+      )
+    }
+  }
+}
+
+///|
+/// Parse an interchange after enforcing input, segment-count, and segment-size limits.
+pub fn parse_with_limits(
+  source : String,
+  limits : ParseLimits,
+) -> Interchange raise ParseError {
+  check_limits(source, limits)
+  parse(source)
 }
 
 ///|
