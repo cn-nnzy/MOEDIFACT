@@ -78,3 +78,29 @@ test "reports a missing UNB control reference" {
   assert_eq(findings.length(), 1)
   assert_eq(findings[0].code, "missing-unb-reference")
 }
+
+///|
+test "validates functional group envelopes" {
+  let valid = @moedifact.parse(
+    "UNB+UNOC:3+S+R+DATE+42'UNG+ORDERS+S+R+DATE+G1'UNH+1+ORDERS:D:96A:UN'UNT+2+1'UNH+2+ORDERS:D:96A:UN'UNT+2+2'UNE+2+G1'UNZ+1+42'",
+  )
+  assert_eq(@moedifact.validate_envelope(valid).length(), 0)
+  let invalid = @moedifact.parse(
+    "UNB+UNOC:3+S+R+DATE+42'UNG+ORDERS+S+R+DATE+G1'UNH+1+ORDERS:D:96A:UN'UNT+2+1'UNH+2+ORDERS:D:96A:UN'UNT+2+2'UNE+1+G2'UNZ+1+42'",
+  )
+  let findings = @moedifact.validate_envelope(invalid)
+  assert_eq(findings.length(), 2)
+  assert_eq(findings[0].code, "group-count")
+  assert_eq(findings[1].code, "group-reference")
+}
+
+///|
+test "reports an unclosed functional group" {
+  let parsed = @moedifact.parse(
+    "UNB+UNOC:3+S+R+DATE+42'UNG+ORDERS+S+R+DATE+G1'UNH+1+ORDERS:D:96A:UN'UNT+2+1'UNZ+1+42'",
+  )
+  let findings = @moedifact.validate_envelope(parsed)
+  assert_eq(findings.length(), 2)
+  assert_eq(findings[0].code, "missing-une")
+  assert_eq(findings[1].code, "interchange-count")
+}

@@ -259,11 +259,83 @@ pub fn validate_envelope(interchange : Interchange) -> Array[EnvelopeIssue] {
     })
   }
   let mut open_message : (Int, String)? = None
+  let mut open_group : (Int, String, Int)? = None
   let mut message_count = 0
+  let mut group_count = 0
+  let mut saw_group = false
   let mut i = 0
   while i < segments.length() {
     let segment = segments[i]
-    if segment.tag == "UNH" {
+    if segment.tag == "UNG" {
+      saw_group = true
+      match open_group {
+        Some(_) =>
+          issues.push({
+            code: "nested-ung",
+            segment_index: i,
+            message: "UNG appears before the previous UNE",
+          })
+        None => {
+          let reference = match first_value(segment, 4) {
+            Some(value) => value
+            None => {
+              issues.push({
+                code: "missing-ung-reference",
+                segment_index: i,
+                message: "UNG has no functional group reference",
+              })
+              ""
+            }
+          }
+          open_group = Some((i, reference, 0))
+        }
+      }
+    } else if segment.tag == "UNE" {
+      match open_group {
+        None =>
+          issues.push({
+            code: "orphan-une",
+            segment_index: i,
+            message: "UNE has no matching UNG",
+          })
+        Some((_, reference, messages)) => {
+          match first_value(segment, 0) {
+            Some(value) =>
+              if value != messages.to_string() {
+                issues.push({
+                  code: "group-count",
+                  segment_index: i,
+                  message: "UNE message count does not match the functional group",
+                })
+              }
+            None =>
+              issues.push({
+                code: "missing-une-count",
+                segment_index: i,
+                message: "UNE has no functional group message count",
+              })
+          }
+          match first_value(segment, 1) {
+            Some(value) =>
+              if reference != "" && value != reference {
+                issues.push({
+                  code: "group-reference",
+                  segment_index: i,
+                  message: "UNE reference does not match UNG",
+                })
+              }
+            None =>
+              issues.push({
+                code: "missing-une-reference",
+                segment_index: i,
+                message: "UNE has no functional group reference",
+              })
+          }
+          group_count += 1
+          open_group = None
+        }
+      }
+    } else if segment.tag == "UNH" {
       match open_message {
         Some(_) =>
           issues.push({
@@ -325,6 +397,13 @@ pub fn validate_envelope(interchange : Interchange) -> Array[EnvelopeIssue] {
               })
           }
           message_count += 1
+          match open_group {
+            Some((group_index, group_reference, group_messages)) =>
+              open_group = Some(
+                (group_index, group_reference, group_messages + 1),
+              )
+            None => ()
+          }
           open_message = None
         }
       }
@@ -340,10 +419,24 @@ pub fn validate_envelope(interchange : Interchange) -> Array[EnvelopeIssue] {
       })
     None => ()
   }
+  match open_group {
+    Some((index, _, _)) =>
+      issues.push({
+        code: "missing-une",
+        segment_index: index,
+        message: "functional group has no closing UNE",
+      })
+    None => ()
+  }
   if segments[segments.length() - 1].tag == "UNZ" {
+    let expected_control_count = if saw_group {
+      group_count
+    } else {
+      message_count
+    }
     match first_value(segments[segments.length() - 1], 0) {
       Some(value) =>
-        if value != message_count.to_string() {
+        if value != expected_control_count.to_string() {
           issues.push({
             code: "interchange-count",
             segment_index: segments.length() - 1,
