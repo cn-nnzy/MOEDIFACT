@@ -20,6 +20,7 @@ pub suberror ParseError {
   InputLimitExceeded(Int, Int)
   SegmentLimitExceeded(Int, Int)
   SegmentLengthLimitExceeded(Int, Int, Int)
+  StreamAlreadyFinished
 }
 
 // Types and methods
@@ -46,6 +47,13 @@ pub(all) struct Segment {
   start : Int
   end : Int
 }
+
+pub struct StreamParser {
+  // private fields
+}
+pub fn StreamParser::feed(Self, String) -> Unit raise ParseError
+pub fn StreamParser::finish(Self) -> Interchange raise ParseError
+pub fn StreamParser::new() -> Self
 
 pub(all) struct Syntax {
   component : Char

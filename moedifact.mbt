@@ -26,6 +26,7 @@ pub suberror ParseError {
   InputLimitExceeded(Int, Int)
   SegmentLimitExceeded(Int, Int)
   SegmentLengthLimitExceeded(Int, Int, Int)
+  StreamAlreadyFinished
 }
 
 ///|

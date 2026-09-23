@@ -152,3 +152,34 @@ test "rejects bounded parsing overflows" {
     _ => fail("expected segment length error")
   }
 }
+
+///|
+test "parses arbitrary stream chunk boundaries" {
+  let parser = @moedifact.StreamParser::new()
+  parser.feed("U")
+  parser.feed("NA:")
+  parser.feed("+.?")
+  parser.feed(" '")
+  parser.feed("UNB+S?")
+  parser.feed("+R+R+D+1'FTX+close?")
+  parser.feed("'later'UNZ+0+1")
+  parser.feed("'")
+  let streamed = parser.finish()
+  let batch = @moedifact.parse(
+    "UNA:+.? 'UNB+S?+R+R+D+1'FTX+close?'later'UNZ+0+1'",
+  )
+  assert_eq(@moedifact.serialize(streamed), @moedifact.serialize(batch))
+  assert_eq(streamed.segments[0].elements[0][0], "S+R")
+  assert_eq(streamed.segments[1].elements[0][0], "close'later")
+}
+
+///|
+test "rejects an unfinished stream segment" {
+  let parser = @moedifact.StreamParser::new()
+  parser.feed("UNB+SENDER")
+  try parser.finish() catch {
+    _ => ()
+  } noraise {
+    _ => fail("expected unfinished segment error")
+  }
+}
