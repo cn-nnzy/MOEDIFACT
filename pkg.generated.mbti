@@ -1,0 +1,47 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "cn-nnzy/moedifact"
+
+// Values
+pub fn parse(String) -> Interchange raise ParseError
+
+pub fn validate_envelope(Interchange) -> Array[EnvelopeIssue]
+
+// Errors
+pub suberror ParseError {
+  InvalidAdvice(Int)
+  MissingTag(Int)
+  UnterminatedSegment(Int)
+  TrailingEscape(Int)
+}
+
+// Types and methods
+pub(all) struct EnvelopeIssue {
+  code : String
+  segment_index : Int
+  message : String
+}
+
+pub(all) struct Interchange {
+  syntax : Syntax
+  segments : Array[Segment]
+}
+
+pub(all) struct Segment {
+  tag : String
+  elements : Array[Array[String]]
+  start : Int
+  end : Int
+}
+
+pub(all) struct Syntax {
+  component : Char
+  element : Char
+  decimal : Char
+  release : Char
+  repetition : Char
+  terminator : Char
+}
+
+// Type aliases
+
+// Traits

@@ -12,6 +12,18 @@ test "parses service advice and escaped separators" {
 }
 
 ///|
+test "keeps every released syntax character as data" {
+  let parsed = @moedifact.parse(
+    "UNA:+.? 'FTX+left?:right+say?+more+ask??again+close?'later'",
+  )
+  let elements = parsed.segments[0].elements
+  assert_eq(elements[0][0], "left:right")
+  assert_eq(elements[1][0], "say+more")
+  assert_eq(elements[2][0], "ask?again")
+  assert_eq(elements[3][0], "close'later")
+}
+
+///|
 test "reports an unterminated segment" {
   try {
     ignore(@moedifact.parse("UNB+SENDER"))

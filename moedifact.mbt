@@ -80,54 +80,50 @@ fn parse_segment(
   end : Int,
   syntax : Syntax,
 ) -> Segment raise ParseError {
-  let fields : Array[String] = []
-  let mut current = StringBuilder()
+  let tag = StringBuilder()
+  let elements : Array[Array[String]] = []
+  let mut components : Array[String] = []
+  let mut value = StringBuilder()
+  let mut in_elements = false
   let mut escaped = false
   for c in raw.iter() {
     if escaped {
-      current.write_char(c)
+      if in_elements {
+        value.write_char(c)
+      } else {
+        tag.write_char(c)
+      }
       escaped = false
     } else if c == syntax.release {
       escaped = true
-    } else if c == syntax.element {
-      fields.push(current.to_string())
-      current = StringBuilder()
+    } else if !in_elements && c == syntax.element {
+      in_elements = true
+    } else if in_elements && c == syntax.element {
+      components.push(value.to_string())
+      elements.push(components)
+      components = []
+      value = StringBuilder()
+    } else if in_elements && c == syntax.component {
+      components.push(value.to_string())
+      value = StringBuilder()
+    } else if in_elements {
+      value.write_char(c)
     } else {
-      current.write_char(c)
+      tag.write_char(c)
     }
   }
   if escaped {
     raise TrailingEscape(end - 1)
   }
-  fields.push(current.to_string())
-  if fields.length() == 0 || fields[0] == "" {
+  let tag = tag.to_string()
+  if tag == "" {
     raise MissingTag(start)
   }
-  let elements : Array[Array[String]] = []
-  for field in fields[1:] {
-    let parts : Array[String] = []
-    let mut component = StringBuilder()
-    let mut escaped_component = false
-    for c in field.iter() {
-      if escaped_component {
-        component.write_char(c)
-        escaped_component = false
-      } else if c == syntax.release {
-        escaped_component = true
-      } else if c == syntax.component {
-        parts.push(component.to_string())
-        component = StringBuilder()
-      } else {
-        component.write_char(c)
-      }
-    }
-    if escaped_component {
-      raise TrailingEscape(end - 1)
-    }
-    parts.push(component.to_string())
-    elements.push(parts)
+  if in_elements {
+    components.push(value.to_string())
+    elements.push(components)
   }
-  { tag: fields[0], elements, start, end, }
+  { tag, elements, start, end, }
 }
 
 ///|
