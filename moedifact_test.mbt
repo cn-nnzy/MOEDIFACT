@@ -56,3 +56,25 @@ test "validates message and interchange envelopes" {
   assert_eq(findings.length(), 3)
   assert_eq(findings[0].code, "message-count")
 }
+
+///|
+test "checks the UNZ message total" {
+  let valid = @moedifact.parse(
+    "UNB+UNOC:3+S+R+DATE+42'UNH+1+ORDERS:D:96A:UN'UNT+2+1'UNH+2+INVOIC:D:96A:UN'UNT+2+2'UNZ+2+42'",
+  )
+  assert_eq(@moedifact.validate_envelope(valid).length(), 0)
+  let wrong_total = @moedifact.parse(
+    "UNB+UNOC:3+S+R+DATE+42'UNH+1+ORDERS:D:96A:UN'UNT+2+1'UNH+2+INVOIC:D:96A:UN'UNT+2+2'UNZ+1+42'",
+  )
+  let findings = @moedifact.validate_envelope(wrong_total)
+  assert_eq(findings.length(), 1)
+  assert_eq(findings[0].code, "interchange-count")
+}
+
+///|
+test "reports a missing UNB control reference" {
+  let parsed = @moedifact.parse("UNB+UNOC:3+S+R+DATE'UNZ+0'")
+  let findings = @moedifact.validate_envelope(parsed)
+  assert_eq(findings.length(), 1)
+  assert_eq(findings[0].code, "missing-unb-reference")
+}

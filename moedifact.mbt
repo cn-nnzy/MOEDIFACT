@@ -251,7 +251,15 @@ pub fn validate_envelope(interchange : Interchange) -> Array[EnvelopeIssue] {
   } else {
     None
   }
+  if segments[0].tag == "UNB" && interchange_reference is None {
+    issues.push({
+      code: "missing-unb-reference",
+      segment_index: 0,
+      message: "UNB has no interchange control reference",
+    })
+  }
   let mut open_message : (Int, String)? = None
+  let mut message_count = 0
   let mut i = 0
   while i < segments.length() {
     let segment = segments[i]
@@ -316,6 +324,7 @@ pub fn validate_envelope(interchange : Interchange) -> Array[EnvelopeIssue] {
                 message: "UNT has no message reference",
               })
           }
+          message_count += 1
           open_message = None
         }
       }
@@ -332,6 +341,22 @@ pub fn validate_envelope(interchange : Interchange) -> Array[EnvelopeIssue] {
     None => ()
   }
   if segments[segments.length() - 1].tag == "UNZ" {
+    match first_value(segments[segments.length() - 1], 0) {
+      Some(value) =>
+        if value != message_count.to_string() {
+          issues.push({
+            code: "interchange-count",
+            segment_index: segments.length() - 1,
+            message: "UNZ message count does not match the interchange",
+          })
+        }
+      None =>
+        issues.push({
+          code: "missing-unz-count",
+          segment_index: segments.length() - 1,
+          message: "UNZ has no interchange message count",
+        })
+    }
     match interchange_reference {
       Some(reference) =>
         match first_value(segments[segments.length() - 1], 1) {
