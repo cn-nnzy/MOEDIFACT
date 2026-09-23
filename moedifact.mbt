@@ -158,6 +158,59 @@ pub fn parse(source : String) -> Interchange raise ParseError {
 }
 
 ///|
+fn must_release(char : Char, syntax : Syntax) -> Bool {
+  char == syntax.component ||
+  char == syntax.element ||
+  char == syntax.release ||
+  char == syntax.repetition ||
+  char == syntax.terminator
+}
+
+///|
+fn write_escaped(
+  output : StringBuilder,
+  value : String,
+  syntax : Syntax,
+) -> Unit {
+  for char in value {
+    if must_release(char, syntax) {
+      output.write_char(syntax.release)
+    }
+    output.write_char(char)
+  }
+}
+
+///|
+/// Serialize an interchange in a deterministic form, including its UNA advice.
+pub fn serialize(interchange : Interchange) -> String {
+  let output = StringBuilder()
+  let syntax = interchange.syntax
+  output.write_string("UNA")
+  output.write_char(syntax.component)
+  output.write_char(syntax.element)
+  output.write_char(syntax.decimal)
+  output.write_char(syntax.release)
+  output.write_char(syntax.repetition)
+  output.write_char(syntax.terminator)
+  for segment in interchange.segments {
+    output.write_string(segment.tag)
+    for element in segment.elements {
+      output.write_char(syntax.element)
+      let mut index = 0
+      while index < element.length() {
+        if index > 0 {
+          output.write_char(syntax.component)
+        }
+        write_escaped(output, element[index], syntax)
+        index += 1
+      }
+    }
+    output.write_char(syntax.terminator)
+  }
+  output.to_string()
+}
+
+///|
 fn first_value(segment : Segment, index : Int) -> String? {
   if index < segment.elements.length() && segment.elements[index].length() > 0 {
     Some(segment.elements[index][0])

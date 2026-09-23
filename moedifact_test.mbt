@@ -24,6 +24,16 @@ test "keeps every released syntax character as data" {
 }
 
 ///|
+test "serializes released data deterministically" {
+  let source = "UNA:+.? 'FTX+left?:right+say?+more+ask??again+close?'later'"
+  let encoded = @moedifact.serialize(@moedifact.parse(source))
+  assert_eq(encoded, source)
+  let reparsed = @moedifact.parse(encoded)
+  assert_eq(reparsed.segments[0].elements[0][0], "left:right")
+  assert_eq(reparsed.segments[0].elements[3][0], "close'later")
+}
+
+///|
 test "reports an unterminated segment" {
   try {
     ignore(@moedifact.parse("UNB+SENDER"))

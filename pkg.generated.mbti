@@ -4,6 +4,8 @@ package "cn-nnzy/moedifact"
 // Values
 pub fn parse(String) -> Interchange raise ParseError
 
+pub fn serialize(Interchange) -> String
+
 pub fn validate_envelope(Interchange) -> Array[EnvelopeIssue]
 
 // Errors

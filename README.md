@@ -8,7 +8,8 @@ not attempt to interpret a particular message directory such as ORDERS or
 INVOIC.
 
 ```moonbit
-let interchange = @moedifact.parse("UNA:+.? 'UNB+UNOC:3+SENDER+RECEIVER'" )
+let interchange = @moedifact.parse("UNA:+.? 'UNB+UNOC:3+SENDER+RECEIVER'")
+let canonical = @moedifact.serialize(interchange)
 ```
 
 The package is designed for import gates and offline validation tools. A
@@ -16,8 +17,9 @@ directory-level message validator can build on this syntax tree later.
 
 ## Status
 
-The parser and its error model are the initial public slice. Envelope counts,
-streaming input, and deterministic serialization are planned follow-up slices.
+The library currently provides parsing, deterministic serialization, release
+character handling, and service-envelope checks. Streaming input and message
+directory validation are planned follow-up slices.
 
 ## License
 
