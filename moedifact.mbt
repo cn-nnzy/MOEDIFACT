@@ -79,10 +79,13 @@ let default_syntax : Syntax = {
 
 ///|
 fn syntax_from(source : StringView) -> (Syntax, Int) raise ParseError {
-  if source.length() >= 9 &&
+  if source.length() >= 3 &&
     source.get_char(0).unwrap() == 'U' &&
     source.get_char(1).unwrap() == 'N' &&
     source.get_char(2).unwrap() == 'A' {
+    if source.length() < 9 {
+      raise InvalidAdvice(0)
+    }
     let syntax = {
       component: source.get_char(3).unwrap(),
       element: source.get_char(4).unwrap(),
@@ -91,10 +94,24 @@ fn syntax_from(source : StringView) -> (Syntax, Int) raise ParseError {
       repetition: source.get_char(7).unwrap(),
       terminator: source.get_char(8).unwrap(),
     }
-    if syntax.component == syntax.element ||
-      syntax.element == syntax.release ||
-      syntax.release == syntax.terminator {
-      raise InvalidAdvice(0)
+    let service_chars = [
+      syntax.component,
+      syntax.element,
+      syntax.decimal,
+      syntax.release,
+      syntax.repetition,
+      syntax.terminator,
+    ]
+    let mut i = 0
+    while i < service_chars.length() {
+      let mut j = i + 1
+      while j < service_chars.length() {
+        if service_chars[i] == service_chars[j] {
+          raise InvalidAdvice(0)
+        }
+        j += 1
+      }
+      i += 1
     }
     (syntax, 9)
   } else {
@@ -291,7 +308,7 @@ pub fn serialize(interchange : Interchange) -> String {
   output.write_char(syntax.repetition)
   output.write_char(syntax.terminator)
   for segment in interchange.segments {
-    output.write_string(segment.tag)
+    write_escaped(output, segment.tag, syntax)
     for element in segment.elements {
       output.write_char(syntax.element)
       let mut index = 0

@@ -50,6 +50,9 @@ for both input modes, deterministic serialization, release character handling,
 service-envelope checks, and indexing of validated messages. Message directory
 validation is a planned follow-up slice.
 
+The parser rejects truncated or ambiguous UNA advice. Serialization preserves
+released syntax characters in parsed segment tags.
+
 ## License
 
 Apache-2.0

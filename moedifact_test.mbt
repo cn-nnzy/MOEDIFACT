@@ -298,3 +298,45 @@ test "requires a message type before indexing" {
     _ => fail("expected missing message type")
   }
 }
+
+///|
+test "rejects incomplete and conflicting service advice" {
+  for malformed in ["UNA:+.?", "UNA:+:? 'UNB+S'", "UNA:+.??'UNB+S'"] {
+    try @moedifact.parse(malformed) catch {
+      @moedifact.InvalidAdvice(index) => assert_eq(index, 0)
+      _ => fail("expected invalid service advice")
+    } noraise {
+      _ => fail("expected invalid service advice")
+    }
+  }
+  let parser = @moedifact.StreamParser::new()
+  parser.feed("UN")
+  parser.feed("A:+.?")
+  try parser.finish() catch {
+    @moedifact.InvalidAdvice(index) => assert_eq(index, 0)
+    _ => fail("expected invalid service advice")
+  } noraise {
+    _ => fail("expected invalid service advice")
+  }
+  let conflicting = @moedifact.StreamParser::new()
+  conflicting.feed("UNA:+:")
+  try conflicting.feed("? 'UNB+S'") catch {
+    @moedifact.InvalidAdvice(index) => assert_eq(index, 0)
+    _ => fail("expected conflicting service advice")
+  } noraise {
+    _ => fail("expected conflicting service advice")
+  }
+}
+
+///|
+test "preserves released segment tags when serializing" {
+  let source = "UNA:+.? 'F?+O+say?'again'"
+  let parsed = @moedifact.parse(source)
+  assert_eq(parsed.segments[0].tag, "F+O")
+  assert_eq(@moedifact.serialize(parsed), source)
+  let streamed = @moedifact.StreamParser::new()
+  streamed.feed("UNA:+.? 'F?")
+  streamed.feed("+O+say?")
+  streamed.feed("'again'")
+  assert_eq(@moedifact.serialize(streamed.finish()), source)
+}
