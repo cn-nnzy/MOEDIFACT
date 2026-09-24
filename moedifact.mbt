@@ -378,10 +378,41 @@ pub fn validate_envelope(interchange : Interchange) -> Array[EnvelopeIssue] {
   let mut message_count = 0
   let mut group_count = 0
   let mut saw_group = false
+  let mut saw_direct_message = false
   let mut i = 0
   while i < segments.length() {
     let segment = segments[i]
-    if segment.tag == "UNG" {
+    if segment.tag == "UNB" {
+      if i != 0 {
+        issues.push({
+          code: "misplaced-unb",
+          segment_index: i,
+          message: "UNB must be the first segment of the interchange",
+        })
+      }
+    } else if segment.tag == "UNZ" {
+      if i != segments.length() - 1 {
+        issues.push({
+          code: "misplaced-unz",
+          segment_index: i,
+          message: "UNZ must be the last segment of the interchange",
+        })
+      }
+    } else if segment.tag == "UNG" {
+      if open_message is Some(_) {
+        issues.push({
+          code: "group-inside-message",
+          segment_index: i,
+          message: "UNG appears before the open message is closed",
+        })
+      }
+      if saw_direct_message {
+        issues.push({
+          code: "mixed-grouping",
+          segment_index: i,
+          message: "an interchange cannot mix groups and direct messages",
+        })
+      }
       saw_group = true
       match open_group {
         Some(_) =>
@@ -406,6 +437,13 @@ pub fn validate_envelope(interchange : Interchange) -> Array[EnvelopeIssue] {
         }
       }
     } else if segment.tag == "UNE" {
+      if open_message is Some(_) {
+        issues.push({
+          code: "group-closed-before-message",
+          segment_index: i,
+          message: "UNE appears before the open message is closed",
+        })
+      }
       match open_group {
         None =>
           issues.push({
@@ -451,6 +489,17 @@ pub fn validate_envelope(interchange : Interchange) -> Array[EnvelopeIssue] {
         }
       }
     } else if segment.tag == "UNH" {
+      if open_group is None {
+        if saw_group {
+          issues.push({
+            code: "mixed-grouping",
+            segment_index: i,
+            message: "an interchange cannot mix groups and direct messages",
+          })
+        } else {
+          saw_direct_message = true
+        }
+      }
       match open_message {
         Some(_) =>
           issues.push({
@@ -522,6 +571,12 @@ pub fn validate_envelope(interchange : Interchange) -> Array[EnvelopeIssue] {
           open_message = None
         }
       }
+    } else if open_message is None {
+      issues.push({
+        code: "segment-outside-message",
+        segment_index: i,
+        message: "data segment appears outside a message",
+      })
     }
     i += 1
   }

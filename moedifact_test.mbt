@@ -340,3 +340,69 @@ test "preserves released segment tags when serializing" {
   streamed.feed("'again'")
   assert_eq(@moedifact.serialize(streamed.finish()), source)
 }
+
+///|
+test "rejects mixed direct messages and functional groups" {
+  let direct_then_group = @moedifact.parse(
+    "UNB+UNOC:3+S+R+DATE+42'UNH+1+ORDERS:D:96A:UN'UNT+2+1'UNG+ORDERS+S+R+DATE+G1'UNH+2+ORDERS:D:96A:UN'UNT+2+2'UNE+1+G1'UNZ+1+42'",
+  )
+  let findings = @moedifact.validate_envelope(direct_then_group)
+  assert_eq(findings.length(), 1)
+  assert_eq(findings[0].code, "mixed-grouping")
+  assert_eq(findings[0].segment_index, 3)
+  try @moedifact.index_messages(direct_then_group) catch {
+    @moedifact.InvalidEnvelope(code, index) => {
+      assert_eq(code, "mixed-grouping")
+      assert_eq(index, 3)
+    }
+    _ => fail("expected mixed grouping error")
+  } noraise {
+    _ => fail("expected mixed grouping error")
+  }
+  let group_then_direct = @moedifact.parse(
+    "UNB+UNOC:3+S+R+DATE+42'UNG+ORDERS+S+R+DATE+G1'UNH+1+ORDERS:D:96A:UN'UNT+2+1'UNE+1+G1'UNH+2+ORDERS:D:96A:UN'UNT+2+2'UNZ+1+42'",
+  )
+  let reverse_findings = @moedifact.validate_envelope(group_then_direct)
+  assert_eq(reverse_findings.length(), 1)
+  assert_eq(reverse_findings[0].code, "mixed-grouping")
+  assert_eq(reverse_findings[0].segment_index, 5)
+}
+
+///|
+test "rejects functional group boundaries inside a message" {
+  let opened_inside = @moedifact.parse(
+    "UNB+UNOC:3+S+R+DATE+42'UNH+1+ORDERS:D:96A:UN'UNG+ORDERS+S+R+DATE+G1'UNT+3+1'UNE+1+G1'UNZ+1+42'",
+  )
+  let findings = @moedifact.validate_envelope(opened_inside)
+  assert_eq(findings[0].code, "group-inside-message")
+  assert_eq(findings[0].segment_index, 2)
+  let closed_inside = @moedifact.parse(
+    "UNB+UNOC:3+S+R+DATE+42'UNG+ORDERS+S+R+DATE+G1'UNH+1+ORDERS:D:96A:UN'UNE+0+G1'UNT+3+1'UNZ+1+42'",
+  )
+  let closed_findings = @moedifact.validate_envelope(closed_inside)
+  assert_eq(closed_findings.length(), 1)
+  assert_eq(closed_findings[0].code, "group-closed-before-message")
+  assert_eq(closed_findings[0].segment_index, 3)
+}
+
+///|
+test "rejects misplaced service and stray data segments" {
+  let duplicate_header = @moedifact.parse(
+    "UNB+UNOC:3+S+R+DATE+42'UNB+UNOC:3+S+R+DATE+42'UNZ+0+42'",
+  )
+  let header_findings = @moedifact.validate_envelope(duplicate_header)
+  assert_eq(header_findings.length(), 1)
+  assert_eq(header_findings[0].code, "misplaced-unb")
+  let early_trailer = @moedifact.parse(
+    "UNB+UNOC:3+S+R+DATE+42'UNZ+0+42'UNZ+0+42'",
+  )
+  let trailer_findings = @moedifact.validate_envelope(early_trailer)
+  assert_eq(trailer_findings.length(), 1)
+  assert_eq(trailer_findings[0].code, "misplaced-unz")
+  let stray_data = @moedifact.parse(
+    "UNB+UNOC:3+S+R+DATE+42'FTX+outside'UNZ+0+42'",
+  )
+  let data_findings = @moedifact.validate_envelope(stray_data)
+  assert_eq(data_findings.length(), 1)
+  assert_eq(data_findings[0].code, "segment-outside-message")
+}

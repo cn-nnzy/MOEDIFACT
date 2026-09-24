@@ -51,7 +51,8 @@ service-envelope checks, and indexing of validated messages. Message directory
 validation is a planned follow-up slice.
 
 The parser rejects truncated or ambiguous UNA advice. Serialization preserves
-released syntax characters in parsed segment tags.
+released syntax characters in parsed segment tags. Envelope validation also
+checks whether groups and messages follow the interchange hierarchy.
 
 ## License
 
