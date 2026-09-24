@@ -2,11 +2,13 @@
 /// Incremental parser for interchanges split across arbitrary text chunks.
 pub struct StreamParser {
   priv mut syntax : Syntax?
+  priv limits : ParseLimits?
   priv mut pending : StringBuilder
   priv mut segment : StringBuilder
   priv segments : Array[Segment]
   priv mut segment_start : Int
   priv mut offset : Int
+  priv mut input_units : Int
   priv mut escaped : Bool
   priv mut finished : Bool
 }
@@ -16,11 +18,33 @@ pub struct StreamParser {
 pub fn StreamParser::new() -> StreamParser {
   {
     syntax: None,
+    limits: None,
     pending: StringBuilder(),
     segment: StringBuilder(),
     segments: [],
     segment_start: 0,
     offset: 0,
+    input_units: 0,
+    escaped: false,
+    finished: false,
+  }
+}
+
+///|
+/// Create an incremental parser with resource limits for untrusted input.
+pub fn StreamParser::new_with_limits(
+  limits : ParseLimits,
+) -> StreamParser raise ParseError {
+  validate_limits(limits)
+  {
+    syntax: None,
+    limits: Some(limits),
+    pending: StringBuilder(),
+    segment: StringBuilder(),
+    segments: [],
+    segment_start: 0,
+    offset: 0,
+    input_units: 0,
     escaped: false,
     finished: false,
   }
@@ -36,6 +60,27 @@ fn StreamParser::process(
   let mut i = start
   while i < text.length() {
     let char = text.get_char(i).unwrap()
+    match self.limits {
+      Some(limits) => {
+        let segment_units = self.offset - self.segment_start + 1
+        if segment_units > limits.max_segment_units {
+          raise SegmentLengthLimitExceeded(
+            self.segments.length(),
+            segment_units,
+            limits.max_segment_units,
+          )
+        }
+        if char == syntax.terminator &&
+          !self.escaped &&
+          self.segments.length() + 1 > limits.max_segments {
+          raise SegmentLimitExceeded(
+            self.segments.length() + 1,
+            limits.max_segments,
+          )
+        }
+      }
+      None => ()
+    }
     if self.escaped {
       self.segment.write_char(char)
       self.escaped = false
@@ -96,6 +141,16 @@ pub fn StreamParser::feed(
 ) -> Unit raise ParseError {
   if self.finished {
     raise StreamAlreadyFinished
+  }
+  match self.limits {
+    Some(limits) => {
+      let next_input_units = self.input_units + chunk.length()
+      if next_input_units > limits.max_input_units {
+        raise InputLimitExceeded(next_input_units, limits.max_input_units)
+      }
+      self.input_units = next_input_units
+    }
+    None => self.input_units += chunk.length()
   }
   if self.syntax is None {
     self.pending.write_string(chunk)

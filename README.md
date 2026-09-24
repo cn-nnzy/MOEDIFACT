@@ -20,6 +20,15 @@ let stream = @moedifact.StreamParser::new()
 stream.feed("UNA:+.?")
 stream.feed(" 'UNB+UNOC:3+SENDER+RECEIVER'")
 let streamed = stream.finish()
+
+let guarded_stream = @moedifact.StreamParser::new_with_limits({
+  max_input_units: 1048576,
+  max_segments: 10000,
+  max_segment_units: 65536,
+})
+guarded_stream.feed("UNB+UNOC:3+SENDER+RECEIVER+DATE+1'")
+guarded_stream.feed("UNZ+0+1'")
+let guarded = guarded_stream.finish()
 ```
 
 The package is designed for import gates and offline validation tools. A
@@ -27,10 +36,10 @@ directory-level message validator can build on this syntax tree later.
 
 ## Status
 
-The library currently provides batch and incremental parsing, optional resource
-limits, deterministic serialization, release character handling, and
-service-envelope checks. Message directory validation is a planned follow-up
-slice.
+The library currently provides batch and incremental parsing, resource limits
+for both input modes, deterministic serialization, release character handling,
+and service-envelope checks. Message directory validation is a planned
+follow-up slice.
 
 ## License
 

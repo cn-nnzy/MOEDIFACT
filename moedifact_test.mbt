@@ -183,3 +183,64 @@ test "rejects an unfinished stream segment" {
     _ => fail("expected unfinished segment error")
   }
 }
+
+///|
+test "enforces stream limits across chunk boundaries" {
+  let source = "UNA:+.? 'UNB+S+R+D+1'UNZ+0+1'"
+  let exact = @moedifact.StreamParser::new_with_limits({
+    max_input_units: source.length(),
+    max_segments: 2,
+    max_segment_units: 12,
+  })
+  exact.feed("UNA:+.?")
+  exact.feed(" 'UNB+S+")
+  exact.feed("R+D+1'UNZ+")
+  exact.feed("0+1'")
+  assert_eq(exact.finish().segments.length(), 2)
+  let input_limited = @moedifact.StreamParser::new_with_limits({
+    max_input_units: source.length() - 1,
+    max_segments: 2,
+    max_segment_units: 12,
+  })
+  input_limited.feed("UNA:+.? 'UNB+S+R+D+1'")
+  try input_limited.feed("UNZ+0+1'") catch {
+    @moedifact.InputLimitExceeded(actual, limit) => {
+      assert_eq(actual, source.length())
+      assert_eq(limit, source.length() - 1)
+    }
+    _ => fail("expected input limit error")
+  } noraise {
+    _ => fail("expected input limit error")
+  }
+  let segment_limited = @moedifact.StreamParser::new_with_limits({
+    max_input_units: source.length(),
+    max_segments: 2,
+    max_segment_units: 8,
+  })
+  segment_limited.feed("UNB+S+")
+  try segment_limited.feed("R+D+") catch {
+    @moedifact.SegmentLengthLimitExceeded(index, actual, limit) => {
+      assert_eq(index, 0)
+      assert_eq(actual, 9)
+      assert_eq(limit, 8)
+    }
+    _ => fail("expected segment length error")
+  } noraise {
+    _ => fail("expected segment length error")
+  }
+  let count_limited = @moedifact.StreamParser::new_with_limits({
+    max_input_units: source.length(),
+    max_segments: 1,
+    max_segment_units: 12,
+  })
+  count_limited.feed("UNB+S+R+D+1'UNZ+0+")
+  try count_limited.feed("1'") catch {
+    @moedifact.SegmentLimitExceeded(actual, limit) => {
+      assert_eq(actual, 2)
+      assert_eq(limit, 1)
+    }
+    _ => fail("expected segment count error")
+  } noraise {
+    _ => fail("expected segment count error")
+  }
+}

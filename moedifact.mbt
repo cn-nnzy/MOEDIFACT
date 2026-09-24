@@ -171,7 +171,7 @@ pub fn parse(source : String) -> Interchange raise ParseError {
 }
 
 ///|
-fn check_limits(source : String, limits : ParseLimits) -> Unit raise ParseError {
+fn validate_limits(limits : ParseLimits) -> Unit raise ParseError {
   if limits.max_input_units <= 0 {
     raise InvalidLimit("max_input_units", limits.max_input_units)
   }
@@ -181,6 +181,11 @@ fn check_limits(source : String, limits : ParseLimits) -> Unit raise ParseError 
   if limits.max_segment_units <= 0 {
     raise InvalidLimit("max_segment_units", limits.max_segment_units)
   }
+}
+
+///|
+fn check_limits(source : String, limits : ParseLimits) -> Unit raise ParseError {
+  validate_limits(limits)
   if source.length() > limits.max_input_units {
     raise InputLimitExceeded(source.length(), limits.max_input_units)
   }
