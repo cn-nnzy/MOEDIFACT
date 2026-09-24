@@ -2,6 +2,8 @@
 package "cn-nnzy/moedifact"
 
 // Values
+pub fn index_messages(Interchange) -> Array[MessageSpan] raise MessageIndexError
+
 pub fn parse(String) -> Interchange raise ParseError
 
 pub fn parse_with_limits(String, ParseLimits) -> Interchange raise ParseError
@@ -11,6 +13,11 @@ pub fn serialize(Interchange) -> String
 pub fn validate_envelope(Interchange) -> Array[EnvelopeIssue]
 
 // Errors
+pub suberror MessageIndexError {
+  InvalidEnvelope(String, Int)
+  MissingMessageType(Int)
+}
+
 pub suberror ParseError {
   InvalidAdvice(Int)
   MissingTag(Int)
@@ -33,6 +40,14 @@ pub(all) struct EnvelopeIssue {
 pub(all) struct Interchange {
   syntax : Syntax
   segments : Array[Segment]
+}
+
+pub(all) struct MessageSpan {
+  start_index : Int
+  end_index : Int
+  reference : String
+  message_type : String
+  group_reference : String?
 }
 
 pub(all) struct ParseLimits {

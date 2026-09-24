@@ -29,6 +29,15 @@ let guarded_stream = @moedifact.StreamParser::new_with_limits({
 guarded_stream.feed("UNB+UNOC:3+SENDER+RECEIVER+DATE+1'")
 guarded_stream.feed("UNZ+0+1'")
 let guarded = guarded_stream.finish()
+
+let complete = @moedifact.parse(
+  "UNB+UNOC:3+S+R+DATE+42'UNH+1+INVOIC:D:96A:UN'UNT+2+1'UNZ+1+42'",
+)
+let messages = @moedifact.index_messages(complete)
+for message in messages {
+  // Message segments occupy [start_index, end_index) in complete.segments.
+  println(message.message_type)
+}
 ```
 
 The package is designed for import gates and offline validation tools. A
@@ -38,8 +47,8 @@ directory-level message validator can build on this syntax tree later.
 
 The library currently provides batch and incremental parsing, resource limits
 for both input modes, deterministic serialization, release character handling,
-and service-envelope checks. Message directory validation is a planned
-follow-up slice.
+service-envelope checks, and indexing of validated messages. Message directory
+validation is a planned follow-up slice.
 
 ## License
 

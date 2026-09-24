@@ -244,3 +244,57 @@ test "enforces stream limits across chunk boundaries" {
     _ => fail("expected segment count error")
   }
 }
+
+///|
+test "indexes grouped messages with segment ranges" {
+  let interchange = @moedifact.parse(
+    "UNB+UNOC:3+S+R+DATE+42'UNG+ORDERS+S+R+DATE+G1'UNH+A+ORDERS:D:96A:UN'BGM+220'UNT+3+A'UNH+B+ORDERS:D:96A:UN'UNT+2+B'UNE+2+G1'UNZ+1+42'",
+  )
+  let spans = @moedifact.index_messages(interchange)
+  assert_eq(spans.length(), 2)
+  assert_eq(spans[0].start_index, 2)
+  assert_eq(spans[0].end_index, 5)
+  assert_eq(spans[0].reference, "A")
+  assert_eq(spans[0].message_type, "ORDERS")
+  assert_eq(spans[0].group_reference, Some("G1"))
+  assert_eq(interchange.segments[spans[0].end_index - 1].tag, "UNT")
+  assert_eq(spans[1].start_index, 5)
+  assert_eq(spans[1].end_index, 7)
+  assert_eq(spans[1].reference, "B")
+}
+
+///|
+test "indexes an ungrouped message and rejects a broken envelope" {
+  let interchange = @moedifact.parse(
+    "UNB+UNOC:3+S+R+DATE+42'UNH+1+INVOIC:D:96A:UN'UNT+2+1'UNZ+1+42'",
+  )
+  let spans = @moedifact.index_messages(interchange)
+  assert_eq(spans.length(), 1)
+  assert_eq(spans[0].group_reference, None)
+  assert_eq(spans[0].message_type, "INVOIC")
+  let broken = @moedifact.parse(
+    "UNB+UNOC:3+S+R+DATE+42'UNH+1+INVOIC:D:96A:UN'UNT+3+1'UNZ+1+42'",
+  )
+  try @moedifact.index_messages(broken) catch {
+    @moedifact.InvalidEnvelope(code, index) => {
+      assert_eq(code, "message-count")
+      assert_eq(index, 2)
+    }
+    _ => fail("expected envelope error")
+  } noraise {
+    _ => fail("expected envelope error")
+  }
+}
+
+///|
+test "requires a message type before indexing" {
+  let interchange = @moedifact.parse(
+    "UNB+UNOC:3+S+R+DATE+42'UNH+1'UNT+2+1'UNZ+1+42'",
+  )
+  try @moedifact.index_messages(interchange) catch {
+    @moedifact.MissingMessageType(index) => assert_eq(index, 1)
+    _ => fail("expected missing message type")
+  } noraise {
+    _ => fail("expected missing message type")
+  }
+}

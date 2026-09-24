@@ -52,6 +52,22 @@ pub(all) struct EnvelopeIssue {
 }
 
 ///|
+/// A message's inclusive start and exclusive end in `Interchange.segments`.
+pub(all) struct MessageSpan {
+  start_index : Int
+  end_index : Int
+  reference : String
+  message_type : String
+  group_reference : String?
+}
+
+///|
+pub suberror MessageIndexError {
+  InvalidEnvelope(String, Int)
+  MissingMessageType(Int)
+}
+
+///|
 let default_syntax : Syntax = {
   component: ':',
   element: '+',
